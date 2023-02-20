@@ -1,0 +1,295 @@
+---
+title: "R Markdown and Plot"
+author: "Zihan Chen"
+date: "2023-02-19"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Load and check data
+1. Load tidyverse
+```{r, message=FALSE}
+library(tidyverse)
+```
+
+2. load data
+
+```{r}
+gap <- read.delim("gapminder.csv.bz2")
+```
+
+3. The gapminder data set has `r nrow(gap)` rows and `r ncol(gap)` columns.
+
+```{r}
+head(gap, 3)
+```
+
+4. The data set includes the following variable: `r str_flatten_comma(names(gap), last=" and ")`.
+
+5. From the above sample of data we can see that there are a lot of missing variables, and the main reason for that might be the difficulty of accessing these data in specific countries.
+
+## Descriptive statistics 
+
+1.
+
+In name column there are 250 countries.
+```{r}
+gap %>% 
+  select(name) %>% 
+  unique() %>% 
+  nrow()
+```
+
+In iso2 column there are 249 countries.
+```{r}
+gap %>% 
+  select(iso2) %>% 
+  unique() %>% 
+  nrow()
+```
+
+In iso3 column there are 253 countries.
+```{r}
+gap %>% 
+  select(iso3) %>% 
+  unique() %>% 
+  nrow()
+```
+
+2. 
+(a)
+```{r }
+gap %>% 
+  group_by(iso2) %>% 
+  summarize(n = n_distinct(name)) %>% 
+  filter(n!=1)
+```
+
+For most iso2 codes, there is only one country correspond to that code. However, there are two countries which don't have any iso2 code. One country is Namibia and the other country has empty name. 
+```{r}
+gap %>%
+  filter(iso2 == "") %>% 
+  select(name) %>% 
+  unique()
+```
+
+(b)
+```{r}
+gap %>% 
+  group_by(name) %>% 
+  summarize(n = n_distinct(iso3)) %>% 
+  filter(n!=1)
+```
+
+```{r}
+gap %>% 
+  filter(name == "") %>% 
+  select(iso3) %>% 
+  unique()
+```
+
+The countries that have more than one iso3 codes are CHANISL, GBM, KOS, NLD_CURACAO. The name of the countries are empty values.
+
+3. 
+```{r}
+gap %>% 
+  filter(!is.na(time)) %>% 
+  summarize(min = min(time), max = max(time))
+```
+
+The minimum time is 1960 and the maximum time is 2019.
+
+## CO2 emissions
+1. 
+```{r}
+gap %>% 
+  group_by(time) %>% 
+  filter(is.na(co2) | is.na(co2_PC)) %>% 
+  summarize(n = n()) %>%
+  arrange(desc(n))
+```
+
+Year 2017, 2018, and 2019 have most missing data.
+
+2. 
+```{r}
+co2_e <- gap %>% 
+  filter(!is.na(co2) & iso2 != "") %>% 
+  group_by(iso2, time) %>% 
+  filter(iso2 == "CN" | iso2 == "IN" | iso2 == "US" | iso2 == "JP" | iso2 == "GB") %>% 
+  summarise(total_co2 = co2)
+
+co2_e
+
+ggplot(data = co2_e, mapping = aes(x = time, y = total_co2, col = factor(iso2))) + 
+  geom_line()
+```
+
+The CO2 emission for Britain and Japan didn't change so much over time, but for China and India, the emission increased over time. As for the United State, the overall trend is increasing but there are a few decreases over the time period. China has the greatest growth rate and have become the country with largest total CO2 emission.The general ranking for the total emission for time closest to now is CN>US>IN>JP>GB.
+
+3. 
+```{r}
+co2_pc_e <- gap %>% 
+  filter(!is.na(co2_PC) & iso2 != "") %>% 
+  group_by(iso2, time) %>% 
+  filter(iso2 == "CN" | iso2 == "IN" | iso2 == "US" | iso2 == "JP"| iso2 == "GB") %>% 
+  summarise(total_co2_pc = co2_PC)
+
+co2_pc_e
+
+ggplot(data = co2_pc_e, mapping = aes(x = time, y = total_co2_pc, col = factor(iso2))) + 
+  geom_line()
+```
+
+The figure suggested that the largest CO2 per capita is The United State, and from the result we get from the last graph we can imply that US has less population, which caused the emission per capita to be the greatest among selected countries. And for China, we can imply that due to large population, although the total emission is the greatest among selected countries the emission per capita is relatively low. The general ranking of the emission per capita for time closest to now is US>GB>JP>CN>IN.
+
+4. 
+```{r}
+avg_co2_region <- gap %>% 
+  filter(!is.na(co2_PC) & region != "") %>% 
+  group_by(region, time) %>% 
+  summarize(avg_co2_pc = mean(co2_PC))
+
+avg_co2_region
+
+ggplot(data = avg_co2_region, mapping = aes(x = time, y = avg_co2_pc, col = factor(region))) +
+  geom_line()
+```
+
+The highest average region CO2_PC is around 1970 and is in the Americas region. For time closest to now, the largest average region CO2_PC is in Asia region, but is still smaller than the emission around 1970 in Americas. Africa region always has the least average CO2_PC, and Europe always has the first or second place of average CO2_PC. 
+
+5. 
+```{r}
+bar_data <- gap %>% 
+  filter(!is.na(co2_PC) & !is.na(region)) %>% 
+  filter(name != "") %>% 
+  filter(time == 1960 | time == 2016) %>% 
+  group_by(region, time) %>% 
+  mutate(avg_co2_pc = mean(co2_PC))
+
+bar_data
+
+ggplot(data = bar_data, mapping = aes(x = region, y = avg_co2_pc, fill = as.factor(time))) +
+  geom_col(position = "dodge")
+```
+
+Africa has the least average CO2_pc emission for the overall time, and Americas has the most average CO2_PC emission overall. The largest growth in average CO2_PC emission is in Asia and Oceania. Only average CO2_PC emission in Americas showed decrease over time. 
+
+6. 
+```{r}
+bar_data <- gap %>% 
+  filter(!is.na(co2_PC) & !is.na(region)) %>% 
+  filter(name != "") %>% 
+  filter(time == 2019 | time == 2016) %>% 
+  group_by(region, time) %>% 
+  summarise(avg_co2_pc = mean(co2_PC))
+
+bar_data
+
+ggplot(data = bar_data, mapping = aes(x = region, y = avg_co2_pc, fill = as.factor(time))) +
+  geom_col(position = "dodge")
+
+gap %>% 
+  filter(time == 2019) %>% 
+  filter(!is.na(co2) | !is.na(co2_PC)) %>% 
+  nrow()
+```
+
+For CO2 and CO2_PC data in year 2019, all data is NA. Thus we cannot directly analysis the largest and smallest CO2 emitters at that time. However, from the data in 2016 we can predict the situation for 2019. The largest emitters would still very likely be Americas, Europe and Aisan, and the smallest emitters would still be Africa, Oceania, and Americas. 
+
+## GDP per capita
+1. 
+```{r}
+scatter_data <- gap %>% 
+  filter(!is.na(GDP_PC) & !is.na(lifeExpectancy) & iso2 != "" & time == 1960) %>% 
+  group_by(iso2, region)
+
+scatter_data
+
+ggplot(data = scatter_data, mapping = aes(x = GDP_PC, y = lifeExpectancy, col = as.factor(region))) +
+  geom_point(aes(size = totalPopulation))
+```
+
+As the GDP per capita increases, the life expectancy increases. There are more countries in the low GDP_PC proportion than in high GDP_PC proportion. Also, countries in low GDP_PC proportion tend to have more population.Countries in Asia, Africa and Americas are mostly in the low GDP_PC proportion and countries in Europe together with some countries in Americas and Europe are in the high GDP_PC proportion.
+
+2. 
+```{r}
+scatter_data <- gap %>% 
+  filter(!is.na(GDP_PC) & !is.na(lifeExpectancy) & iso2 != "" & time == 2019) %>% 
+  group_by(iso2, region)
+
+scatter_data
+
+ggplot(data = scatter_data, mapping = aes(x = GDP_PC, y = lifeExpectancy, col = as.factor(region))) +
+  geom_point(aes(size = totalPopulation))
+```
+
+3. The overall life expectancy and GDP_PC for all countries increases. Almost all African countries are in the low GDP_PC proportion. There are more countries are in the middle proportion. There are less countries in the highest GDP_PC proportion and are all in either Americas or Europe. Almost all Asian countries are in the middle proportion while some have higher life expectancy than the countries with the highest GDP_PC. The overall population size also increased for all countries especially for several Asian countries. Overall, the world have higher GDP_PC and higher life expectancy. Also, most of the countries have similar GDP_PC and life expectancy while countries in Africa still have low GDP_PC and life expectancy. 
+
+4. 
+```{r}
+gap %>%
+  filter(!is.na(GDP_PC) & !is.na(lifeExpectancy) & !is.na(region)) %>% 
+  filter(name != "") %>% 
+  filter(time == 1960 | time == 2019) %>% 
+  group_by(region, time) %>% 
+  summarise(avg_life = mean(lifeExpectancy))
+  
+```
+Yes. Africa countries have the least life expectancy and europe countries have the highest. The countries in the rest of the regions have similar life expectancies. 
+
+5. 
+```{r}
+gap %>% 
+  filter(!is.na(GDP_PC) & !is.na(lifeExpectancy) & !is.na(region) & !is.na(time)) %>% 
+  filter(name != "") %>% 
+  filter(time == 1960 | time == 2019) %>% 
+  group_by(region, time) %>% 
+  summarise(avg_life = mean(lifeExpectancy)) %>% 
+  mutate(growth = avg_life - lag(avg_life)) %>% 
+  filter(time == 2019) %>% 
+  arrange(desc(growth))
+```
+Asian countries have the largest growth and Europe countries have the fewest growth. African countries also have high growth, while American and Oceania countries have similar growth.
+
+6. 
+```{r}
+histo_data <- gap %>% 
+  filter(!is.na(GDP_PC) & !is.na(time)) %>% 
+  filter(name != "") %>% 
+  filter(time == 1960 | time == 2019)
+
+ggplot(data = histo_data, mapping = aes(x = GDP_PC, fill = as.factor(time))) +
+  geom_histogram(position = 'dodge')
+  
+```
+
+7. 
+```{r}
+gap %>% 
+  filter(!is.na(lifeExpectancy) & iso2 != "") %>% 
+  filter(time == 1960 | time == 2019) %>% 
+  group_by(time) %>% 
+  summarise(country = iso2, rank = rank(desc(lifeExpectancy))) %>% 
+  filter(country == "US")
+```
+The rank of US in 1960 is 17, and the rank in 2019 is 46.
+
+8. 
+```{r}
+gap %>% 
+  filter(!is.na(lifeExpectancy) & name!= "") %>% 
+  filter(time == 1960 | time == 2019) %>% 
+  group_by(time) %>% 
+  summarise(country = name, rank = rank(desc(lifeExpectancy)), num_country = n_distinct(name)) %>% 
+  filter(country == "United States of America") %>% 
+  mutate(relative_rank = rank / num_country)
+  
+```
+The relative rank in 2019 also decreased for US compared to relative rank in 1960.
+
+## TIME SPENT
+**EIGHT HOURS**
